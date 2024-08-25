@@ -29,7 +29,7 @@ export const TimerProvider = ({ children }) => {
 
   const resetState = () => {
     setTasks([]);
-    
+    setActiveTaskId(null);
     setTotalDaysCompleted(0);
     setTaskListResetTime({});
     setSummaryPersistentTime({});
@@ -63,27 +63,32 @@ export const TimerProvider = ({ children }) => {
     }
   };
 
-  const startTask = (taskId) => {
+  const startTask = async (taskId) => {
     if (activeTaskId !== null && activeTaskId !== taskId) {
       stopTask(); // Stop the previous task if it's not the same as the current one
     }
   
-    const task = tasks.find(task => task.id === taskId);
-
-    if (task) {
+    const task = tasks.find((task) => task.id === taskId);
   
     // Ensure task.elapsed_time is properly loaded and logged
     console.log(`Starting task with ID: ${taskId}`);
     console.log('Task Object:', task);
     console.log(`Loaded elapsed time in seconds from database: ${task?.elapsed_time}`);
   
+    // Use the elapsed_time in seconds directly from the database
     let initialTimeInSeconds = task?.elapsed_time || 0;
   
     console.log(`Initial time in seconds (before start): ${initialTimeInSeconds}`);
   
+    // Reset start_time to null when the task starts
+    await supabase
+      .from('tasks')
+      .update({ start_time: null })
+      .eq('id', taskId);
+  
     setActiveTaskId(taskId);
   
-    // Ensure the initial time is set to the elapsed_time value
+    // Update taskListResetTime once when the task starts
     setTaskListResetTime((prevTimes) => ({
       ...prevTimes,
       [task.id]: new Date(initialTimeInSeconds * 1000).toISOString().substr(11, 8),
@@ -95,16 +100,16 @@ export const TimerProvider = ({ children }) => {
           return {
             ...t,
             isActive: true,
-            time: new Date(initialTimeInSeconds * 1000).toISOString().substr(11, 8),
+            time: new Date(initialTimeInSeconds * 1000).toISOString().substr(11, 8), // Set the initial time directly
           };
         }
         return t;
       })
     );
   
-    // Continue counting from the fetched elapsed time
+    // Start counting from the elapsed time loaded from the database
     timerRef.current = setInterval(() => {
-      initialTimeInSeconds += 1;
+      initialTimeInSeconds += 1; // Increment the time by 1 second
   
       const newTimeString = new Date(initialTimeInSeconds * 1000).toISOString().substr(11, 8);
   
@@ -114,17 +119,13 @@ export const TimerProvider = ({ children }) => {
       setTasks((prevTasks) =>
         prevTasks.map((t) => {
           if (t.id === taskId) {
-            return { ...t, time: newTimeString };
+            return { ...t, time: newTimeString }; // Update task's time in the state
           }
           return t;
         })
       );
     }, 1000);
-  } else {
-    console.error('startTask called but task not found for taskId:', taskId);
-  }
   };
-  
   
   
   const stopTask = () => {
@@ -175,93 +176,107 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
   }
 };
 
-useEffect(() => {
-  console.log('useEffect triggered with activeTaskId:', activeTaskId);
+  
 
-  if (activeTaskId !== null) {
-    const task = tasks.find(task => task.id === activeTaskId);
-
-    if (task) {
-      console.log('Starting timer for activeTaskId:', activeTaskId);
-
-      // Initialize time with the elapsed_time from the database
-      let initialTimeInSeconds = task.elapsed_time || 0;
-      console.log('Initial elapsed_time in seconds:', initialTimeInSeconds);
-
+  useEffect(() => {
+    if (activeTaskId !== null) {
       timerRef.current = setInterval(() => {
-        console.log('Timer tick for activeTaskId:', activeTaskId);
+        setTasks((prevTasks) =>
+          prevTasks.map((task) => {
+            if (task.id === activeTaskId) {
+              const [hours, minutes, seconds] = taskListResetTime[task.id]?.split(':').map(Number) || [0, 0, 0];
+              const totalSeconds = (hours * 3600) + (minutes * 60) + (seconds || 0) + 1;
 
-        initialTimeInSeconds += 1; // Increment the time by 1 second
-        const newTimeString = new Date(initialTimeInSeconds * 1000).toISOString().substr(11, 8);
+              if (!isNaN(totalSeconds)) {
+                const newTimeString = new Date(totalSeconds * 1000).toISOString().substr(11, 8);
 
-        console.log('New time string:', newTimeString);
+                setTaskListResetTime((prevTimes) => ({
+                  ...prevTimes,
+                  [task.id]: newTimeString,
+                }));
 
-        // Update the task's time in the state
-        setTasks(prevTasks =>
-          prevTasks.map(t =>
-            t.id === activeTaskId
-              ? { ...t, time: newTimeString, elapsed_time: initialTimeInSeconds }
-              : t
-          )
+                const [persistHours, persistMinutes, persistSeconds] = summaryPersistentTime[task.id]?.split(':').map(Number) || [0, 0, 0];
+                const totalPersistSeconds = (persistHours * 3600) + (persistMinutes * 60) + (persistSeconds || 0) + 1;
+                if (!isNaN(totalPersistSeconds)) {
+                  const newPersistTimeString = new Date(totalPersistSeconds * 1000).toISOString().substr(11, 8);
+                  setSummaryPersistentTime((prevTimes) => ({
+                    ...prevTimes,
+                    [task.id]: newPersistTimeString,
+                  }));
+                }
+
+                updateTimeInDatabase(task.id, 1);
+
+                return { ...task, time: newTimeString };
+              }
+            }
+            return task;
+          })
         );
 
-        // Save to database every 10 seconds
-        if (initialTimeInSeconds % 1 === 0) {
-          updateTimeInDatabase(task.id, 1);
-          console.log('Saved elapsed_time to database for task:', activeTaskId, 'with time:', initialTimeInSeconds);
-        }
+        const goalTasks = tasks.filter(task => task.status === 'GOAL');
+        const totalGoalTime = goalTasks.reduce((acc, task) => acc + (task.status === 'GOAL' ? task.duration * 60 : 0), 0);
+        const totalElapsed = goalTasks.reduce((acc, task) => {
+          const [hours, minutes, seconds] = taskListResetTime[task.id]?.split(':').map(Number) || [0, 0, 0];
+          return acc + Math.min(hours * 3600 + minutes * 60 + seconds, task.duration * 60);
+        }, 0);
+
+        const currentProgress = totalGoalTime ? (totalElapsed / totalGoalTime) * 100 : 0;
+        setOngoingProgress(currentProgress);
 
       }, 1000);
-    } else {
-      console.error('Task not found for activeTaskId:', activeTaskId);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
     }
-  } else if (timerRef.current) {
-    console.log('Clearing timer for inactive task');
-    clearInterval(timerRef.current);
-  }
 
-  return () => {
-    console.log('Clearing interval on unmount or dependency change');
-    clearInterval(timerRef.current);
-    saveProgressData();  // Save progress when the component unmounts
+    return () => {
+      clearInterval(timerRef.current);
+      saveProgressData();  // Save progress when the component unmounts
+    };
+  }, [activeTaskId, tasks]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      saveProgressData();  // Save progress at regular intervals
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    return () => clearInterval(intervalId); // Clear the interval on component unmount
+  }, [ongoingProgress]);
+
+  const updateTimeInDatabase = async (taskId, seconds, taskCompletion) => {
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('elapsed_time, persistent_time')
+        .eq('id', taskId)
+        .single();
+  
+      if (error) {
+        console.error('Error fetching task time:', error);
+        return;
+      }
+  
+      const currentElapsedTime = data.elapsed_time || 0;
+      const currentPersistentTime = data.persistent_time || 0;
+      const currentTaskCompletion = data.task_completion || 0;
+  
+      const newElapsedTime = currentElapsedTime + seconds;
+      const newPersistentTime = currentPersistentTime + seconds;
+      const newTaskCompletion = taskCompletion !== undefined ? taskCompletion : currentTaskCompletion;
+  
+      const { error: updateError } = await supabase
+        .from('tasks')
+        .update({
+          elapsed_time: newElapsedTime,
+          persistent_time: newPersistentTime,
+        })
+        .eq('id', taskId);
+  
+      if (updateError) console.error('Error updating task time and completion:', updateError);
+    } catch (err) {
+      console.error('Error in updateTimeInDatabase:', err);
+    }
   };
-}, [activeTaskId, tasks]);
-
-const updateTimeInDatabase = async (taskId, seconds, taskCompletion) => {
-  try {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('elapsed_time, persistent_time')
-      .eq('id', taskId)
-      .single();
-
-    if (error) {
-      console.error('Error fetching task time:', error);
-      return;
-    }
-
-    const currentElapsedTime = data.elapsed_time || 0;
-    const currentPersistentTime = data.persistent_time || 0;
-    const currentTaskCompletion = data.task_completion || 0;
-
-    const newElapsedTime = currentElapsedTime + seconds;
-    const newPersistentTime = currentPersistentTime + seconds;
-    const newTaskCompletion = taskCompletion !== undefined ? taskCompletion : currentTaskCompletion;
-
-    const { error: updateError } = await supabase
-      .from('tasks')
-      .update({
-        elapsed_time: newElapsedTime,
-        persistent_time: newPersistentTime,
-      })
-      .eq('id', taskId);
-
-    if (updateError) console.error('Error updating task time and completion:', updateError);
-  } catch (err) {
-    console.error('Error in updateTimeInDatabase:', err);
-  }
-};
-
   
 
   const saveProgressData = async () => {
