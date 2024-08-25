@@ -20,33 +20,45 @@ const TaskListScreen = () => {
   // Move fetchTasks outside useEffect so it can be reused
   const fetchTasks = async () => {
     if (!user) return;
-
+  
     const { data: tasks, error } = await supabase
       .from('tasks')
-      .select('*')  // Ensure all columns are being selected
+      .select('*')
       .eq('user_id', user.id)
       .order('id', { ascending: true });
-
+  
     if (error) {
       console.error('Error fetching tasks:', error);
       return;
     }
-
-    console.log('Fetched tasks from database:', tasks);
-
-    setTasks(tasks.map(task => ({
-      id: task.id,
-      title: task.task_name,
-      duration: task.duration,
-      status: task.status,
-      elapsed_time: task.elapsed_time,  // Make sure elapsed_time is passed here
-      time: task.elapsed_time ? new Date(task.elapsed_time * 1000).toISOString().substr(11, 8) : '00:00:00',
-      persistent_time: task.persistent_time || 0,
-      isActive: activeTaskId === task.id,
-      icon: task.icon || 'FaSun',
-      iconBgColor: task.status === 'GOAL' ? 'green.500' : 'red.500'
-    })));
+  
+    const updatedTasks = tasks.map((task) => {
+      let newUpdatedElapsedTime = task.elapsed_time || 0;
+  
+      if (task.start_time) {
+        const startTime = new Date(task.start_time).getTime();
+        const now = Date.now();
+        const diffInSeconds = Math.floor((now - startTime) / 1000);
+        newUpdatedElapsedTime += diffInSeconds;
+      }
+  
+      return {
+        id: task.id,
+        title: task.task_name,
+        duration: task.duration,
+        status: task.status,
+        elapsed_time: newUpdatedElapsedTime,
+        time: new Date(newUpdatedElapsedTime * 1000).toISOString().substr(11, 8),
+        persistent_time: task.persistent_time || 0,
+        isActive: activeTaskId === task.id,
+        icon: task.icon || 'FaSun',
+        iconBgColor: task.status === 'GOAL' ? 'green.500' : 'red.500'
+      };
+    });
+  
+    setTasks(updatedTasks);
   };
+  
 
   useEffect(() => {
     fetchTasks();
