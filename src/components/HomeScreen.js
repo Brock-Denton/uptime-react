@@ -1,60 +1,62 @@
-// src/components/HomeScreen.js
-
-import React from 'react'; // Import React library
-import { useNavigate } from 'react-router-dom'; // Import useNavigate from react-router-dom for navigation
-import { Button, Box, VStack, Text } from '@chakra-ui/react'; // Import Chakra UI components
-import { useAuth } from '../AuthContext'; // Import useAuth custom hook from AuthContext
-import BottomNavBar from './BottomNavBar'; // Import BottomNavBar component
-import { useTimer } from '../TimerContext'; // Import useTimer custom hook from TimerContext
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button, Box, VStack, Text } from '@chakra-ui/react';
+import { useAuth } from '../AuthContext';
+import BottomNavBar from './BottomNavBar';
+import { useTimer } from '../TimerContext';
 
 const HomeScreen = () => {
-  const { signOut, user } = useAuth(); // Destructure signOut function and user object from useAuth
-  const navigate = useNavigate(); // Initialize useNavigate for routing
-  const { stopTask, activeTaskId } = useTimer(); // Destructure stopTask and activeTaskId from useTimer
+  const { signOut, user } = useAuth();
+  const navigate = useNavigate();
+  const { stopTask, activeTaskId, tasks, updateElapsedTimeInDatabase } = useTimer(); // Add tasks and updateElapsedTimeInDatabase
 
-  // Function to handle user logout
   const handleLogout = async () => {
     try {
-      // Stop the active task if any
+      // If there is an active task, save its current state without stopping it
       if (activeTaskId !== null) {
-        stopTask(); // Stop the timer and save elapsed time
+        const task = tasks.find(task => task.id === activeTaskId);
+        const [hours, minutes, seconds] = task.time.split(':').map(Number);
+        const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+
+        // Update the elapsed time and start time in the database
+        await updateElapsedTimeInDatabase(activeTaskId, totalSeconds, task.start_time);
       }
-      
-      await signOut(); // Sign out the user
-      navigate('/login'); // Redirect to login page after sign out
+
+      await signOut();
+      navigate('/login');
     } catch (error) {
-      console.error('Logout failed', error); // Log any errors that occur during logout
+      console.error('Logout failed', error);
     }
   };
 
   return (
     <Box
-      bgGradient="linear(to-r, black, purple.900)" // Apply a linear gradient background
-      color="white" // Set text color to white
-      minH="100vh" // Set minimum height to 100% of viewport height
-      display="flex" // Use flexbox for layout
-      flexDirection="column" // Arrange children in a column
-      alignItems="center" // Center children horizontally
-      justifyContent="center" // Center children vertically
-      p={6} // Apply padding
+      bgGradient="linear(to-r, black, purple.900)"
+      color="white"
+      minH="100vh"
+      display="flex"
+      flexDirection="column"
+      alignItems="center"
+      justifyContent="center"
+      p={6}
     >
       <VStack spacing={6} w="100%" maxW="sm">
         <Text fontSize="3xl" fontWeight="bold">
-          Welcome, {user?.email || user?.username || 'User'} 
-        </Text> 
+          Welcome, {user?.email || user?.username || 'User'}
+        </Text>
         <Button
-          bgGradient="linear(to-r, purple.500, red.500)" // Apply a linear gradient background to the button
-          color="white" // Set button text color to white
-          size="lg" // Set button size to large
-          width="100%" // Set button width to 100%
-          onClick={handleLogout} // Call handleLogout function on button click
+          bgGradient="linear(to-r, purple.500, red.500)"
+          color="white"
+          size="lg"
+          width="100%"
+          onClick={handleLogout}
         >
           Log out
         </Button>
       </VStack>
-      <BottomNavBar /> 
+      <BottomNavBar />
     </Box>
   );
 };
 
-export default HomeScreen; // Export HomeScreen component as default
+export default HomeScreen;
