@@ -41,7 +41,11 @@ const TaskListScreen = () => {
         const diffInSeconds = Math.floor((now - startTime) / 1000);
         newUpdatedElapsedTime += diffInSeconds;
       }
-  
+
+     // Explicitly set isPending based on the presence of start_time and whether it's active
+     const isPending = task.start_time !== null;
+
+
       return {
         id: task.id,
         title: task.task_name,
@@ -51,6 +55,7 @@ const TaskListScreen = () => {
         time: new Date(newUpdatedElapsedTime * 1000).toISOString().substr(11, 8),
         persistent_time: task.persistent_time || 0,
         isActive: activeTaskId === task.id,
+        isPending,
         icon: task.icon || 'FaSun',
         iconBgColor: task.status === 'GOAL' ? 'green.500' : 'red.500'
       };
