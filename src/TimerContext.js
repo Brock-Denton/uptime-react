@@ -141,6 +141,8 @@ export const TimerProvider = ({ children }) => {
             .from('tasks')
             .update({ start_time: timestamp })
             .eq('id', taskId);
+
+            stopTask();
         }
       }
     };
