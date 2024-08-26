@@ -13,12 +13,18 @@ const icons = {
 
 // Define the TaskItem component
 const TaskItem = ({ task, onStart, onStop, onEdit, progress }) => {
-  const { title, time, status, iconBgColor, isActive, icon } = task; // Destructure task properties
+  const { title, time, status, iconBgColor, isActive, icon, isPending} = task; // Destructure task properties
   const IconComponent = icons[icon]; // Get the icon component from the icons map
   const isComplete = progress >= 100; // Determine if the task is complete
   const progressColorScheme = status === 'GOAL' ? 'green' : status === 'LIMIT' ? 'red' : 'purple'; // Determine progress bar color scheme
   const neonColor = status === 'GOAL' ? 'green.400' : status === 'LIMIT' ? 'red.400' : 'purple.400'; // Determine neon color for complete tasks
-  const activeBorderStyle = isActive ? '2px solid gold' : 'none'; // Determine border style for active tasks
+  // Adjust border style based on active and pending status
+  const activeBorderStyle = isActive 
+    ? '2px solid gold' 
+    : isPending 
+      ? '2px solid orange' 
+      : 'none';
+  
 
   return (
     <VStack
@@ -69,3 +75,4 @@ const TaskItem = ({ task, onStart, onStop, onEdit, progress }) => {
 };
 
 export default TaskItem; // Export TaskItem component
+
