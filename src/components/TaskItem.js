@@ -2,6 +2,7 @@
 import React from 'react'; // Import React
 import { HStack, VStack, Box, Text, Badge, IconButton, Progress } from '@chakra-ui/react'; // Import Chakra UI components
 import { FaPlay, FaPause, FaSun, FaMoon, FaStar, FaCloud } from 'react-icons/fa'; // Import icons from react-icons
+import { useTimer } from '../TimerContext'
 
 // Define a mapping of icon names to icon components
 const icons = {
@@ -13,6 +14,7 @@ const icons = {
 
 // Define the TaskItem component
 const TaskItem = ({ task, onStart, onStop, onEdit, progress }) => {
+  const { upgradedStopTask } = useTimer();
   const { title, time, status, iconBgColor, isActive, icon, isPending} = task; // Destructure task properties
   const IconComponent = icons[icon]; // Get the icon component from the icons map
   const isComplete = progress >= 100; // Determine if the task is complete
@@ -57,7 +59,7 @@ const TaskItem = ({ task, onStart, onStop, onEdit, progress }) => {
             colorScheme="purple"
             variant="outline"
             aria-label={isActive ? "Pause Task" : "Start Task"}
-            onClick={(e) => { e.stopPropagation(); isActive ? onStop() : onStart(); }} // Handle button click to start/stop task
+            onClick={(e) => { e.stopPropagation(); isActive ? upgradedStopTask() : onStart(); }} // Use upgradedStopTask for stop
           />
         </VStack>
       </HStack>
@@ -75,4 +77,5 @@ const TaskItem = ({ task, onStart, onStop, onEdit, progress }) => {
 };
 
 export default TaskItem; // Export TaskItem component
+
 
