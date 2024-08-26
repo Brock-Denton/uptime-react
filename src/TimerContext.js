@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import supabase from './supabaseClient';
 import { useAuth } from './AuthContext';
 
+
+
 const TimerContext = createContext();
 
 export const TimerProvider = ({ children }) => {
@@ -61,6 +63,53 @@ export const TimerProvider = ({ children }) => {
     } catch (err) {
       console.error('Error fetching user data:', err);
     }
+  };
+
+  const fetchTaskss = async () => {
+    if (!user) return;
+
+    const { data: tasks, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching tasks:', error);
+      return;
+    }
+
+    const updatedTasks = tasks.map((task) => {
+      let newUpdatedElapsedTime = task.elapsed_time || 0;
+
+      if (task.start_time) {
+        const startTime = new Date(task.start_time).getTime();
+        const now = Date.now();
+        const diffInSeconds = Math.floor((now - startTime) / 1000);
+        newUpdatedElapsedTime += diffInSeconds;
+
+      }
+
+            // Explicitly set isPending based on the presence of start_time and whether it's active
+            const isPending = task.start_time !== null;
+
+
+      return {
+        id: task.id,
+        title: task.task_name,
+        duration: task.duration,
+        status: task.status,
+        elapsed_time: newUpdatedElapsedTime,
+        time: new Date(newUpdatedElapsedTime * 1000).toISOString().substr(11, 8),
+        persistent_time: task.persistent_time || 0,
+        isActive: activeTaskId === task.id,
+        isPending,
+        icon: task.icon || 'FaSun',
+        iconBgColor: task.status === 'GOAL' ? 'green.500' : 'red.500',
+      };
+    });
+
+    setTasks(updatedTasks);
   };
 
   const startTask = async (taskId) => {
@@ -130,19 +179,80 @@ export const TimerProvider = ({ children }) => {
     }, 1000);
   };
   
+   
+  
+  const stopTask = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current); // Stop the timer
+    }
+  
+    const task = tasks.find(task => task.id === activeTaskId);
+    if (task) {
+      const [hours, minutes, seconds] = task.time.split(':').map(Number);
+      const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+  
+      updateElapsedTimeInDatabase(activeTaskId, totalSeconds);
+  
+      // Forcefully set `isActive` to false and reset `activeTaskId`
+      setTasks(prevTasks =>
+        prevTasks.map(t =>
+          t.id === activeTaskId ? { ...t, elapsed_time: totalSeconds, isActive: false, isPending: false} : t
+        )
+      );
+  
+      console.log(`Task ID ${activeTaskId} should now be inactive`);
+      console.log(`Tasks state:`, tasks);
+      
+      setActiveTaskId(null);
+      console.log("Task stopped. activeTaskId is now:", null);
+      
+    }
+  };
+  
+  
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.hidden) {
-        // Page is hidden, save the current timestamp to start_time in the database
+        const taskId = localStorage.getItem('task_id');
+        console.log(`Visibility change detected. Task ID from localStorage: ${taskId}`);
+  
+        if (taskId) {
+          // Fetch the current task to check start_time
+          const { data: task, error } = await supabase
+            .from('tasks')
+            .select('start_time')
+            .eq('id', taskId)
+            .single();
+  
+          if (error) {
+            console.error('Error fetching task:', error);
+            return;
+          }
+  
+          if (!task.start_time) {
+            console.log(`No start_time found for task ID ${taskId}. Updating now...`);
+  
+            const timestamp = new Date().toISOString();
+            const { error: updateError } = await supabase
+              .from('tasks')
+              .update({ start_time: timestamp })
+              .eq('id', taskId);
+  
+            if (updateError) {
+              console.error('Error updating start_time:', updateError);
+              return;
+            }
+  
+            console.log(`start_time for task ID ${taskId} updated to ${timestamp}`);
+          }
+  
+          stopTask(); // Stop the task and update the elapsed_time and UI state
+        }
+      } else {
+        // This block handles when the user comes back
         const taskId = localStorage.getItem('task_id');
         if (taskId) {
-          const timestamp = new Date().toISOString();
-          await supabase
-            .from('tasks')
-            .update({ start_time: timestamp })
-            .eq('id', taskId);
-
-            stopTask();
+          await fetchTaskss(); // Refetch tasks to ensure UI updates based on start_time
         }
       }
     };
@@ -152,36 +262,13 @@ export const TimerProvider = ({ children }) => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [stopTask, startTask, activeTaskId]);
   
   
-  const stopTask = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current); // Stop the timer
-    }
   
-    // Find the currently active task
-    const task = tasks.find(task => task.id === activeTaskId);
-    if (task) {
-      // Calculate the elapsed time when stopping
-      const [hours, minutes, seconds] = task.time.split(':').map(Number);
-      const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
   
-      // Update the elapsed time in the database
-      updateElapsedTimeInDatabase(activeTaskId, totalSeconds);
   
-      // Update the tasks state with the new elapsed time and deactivate it
-      setTasks(prevTasks =>
-        prevTasks.map(t =>
-          t.id === activeTaskId ? { ...t, elapsed_time: totalSeconds, isActive: false } : t
-        )
-      );
-    }
   
-    setActiveTaskId(null);
-    console.log("Task stopped. activeTaskId is now:", activeTaskId); // Debugging log
-};
-
   
 // Function to update the elapsed time in the database
 const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
@@ -308,6 +395,10 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
 
   const saveProgressData = async () => {
     try {
+      if (!user || !user.id) {
+        console.error("User ID is null or undefined, skipping saveProgressData.");
+        return;
+      }
       const { error } = await supabase
         .from('user_progress')
         .upsert({
@@ -317,7 +408,7 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
           ongoing_progress: ongoingProgress,
           goal_completions: goalCompletions, 
         });
-
+  
       if (error) {
         console.error('Error saving progress data:', error);
       }
@@ -325,6 +416,7 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
       console.error('Error in saveProgressData:', error);
     }
   };
+  
 
   const completeDay = async () => {
     setDailyProgress((prevDailyProgress) => [
@@ -404,7 +496,8 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
       setOngoingProgress,
       setActiveTaskId,
       updateElapsedTimeInDatabase,
-      setGoalCompletions
+      setGoalCompletions,
+      fetchTaskss
     }}>
       {children}
     </TimerContext.Provider>
