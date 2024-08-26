@@ -87,6 +87,9 @@ export const TimerProvider = ({ children }) => {
       .eq('id', taskId);
   
     setActiveTaskId(taskId);
+
+ // Save task ID to local storage for potential visibility change handling
+  localStorage.setItem('task_id', taskId);
   
     // Update taskListResetTime once when the task starts
     setTaskListResetTime((prevTimes) => ({
@@ -126,6 +129,28 @@ export const TimerProvider = ({ children }) => {
       );
     }, 1000);
   };
+  
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.hidden) {
+        // Page is hidden, save the current timestamp to start_time in the database
+        const taskId = localStorage.getItem('task_id');
+        if (taskId) {
+          const timestamp = new Date().toISOString();
+          await supabase
+            .from('tasks')
+            .update({ start_time: timestamp })
+            .eq('id', taskId);
+        }
+      }
+    };
+  
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
   
   
   const stopTask = () => {
