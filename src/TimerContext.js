@@ -208,6 +208,37 @@ export const TimerProvider = ({ children }) => {
       
     }
   };
+
+  const upgradedStopTask = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current); // Stop the timer
+    }
+  
+    const task = tasks.find(task => task.id === activeTaskId);
+    if (task) {
+      const [hours, minutes, seconds] = task.time.split(':').map(Number);
+      const totalSeconds = (hours * 3600) + (minutes * 60) + seconds;
+  
+      updateElapsedTimeInDatabase(activeTaskId, totalSeconds);
+  
+      // Forcefully set `isActive` to false and reset `activeTaskId`
+      setTasks(prevTasks =>
+        prevTasks.map(t =>
+          t.id === activeTaskId ? { ...t, elapsed_time: totalSeconds, isActive: false, isPending: false } : t
+        )
+      );
+  
+      console.log(`Task ID ${activeTaskId} should now be inactive`);
+      console.log(`Tasks state:`, tasks);
+  
+      setActiveTaskId(null);
+      console.log("Task stopped. activeTaskId is now:", null);
+  
+      // Remove the task ID from localStorage
+      localStorage.removeItem('task_id');
+    }
+  };
+  
   
   
   useEffect(() => {
@@ -497,7 +528,8 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
       setActiveTaskId,
       updateElapsedTimeInDatabase,
       setGoalCompletions,
-      fetchTaskss
+      fetchTaskss,
+      upgradedStopTask
     }}>
       {children}
     </TimerContext.Provider>
