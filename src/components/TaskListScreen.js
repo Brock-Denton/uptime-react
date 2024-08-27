@@ -135,7 +135,24 @@ const TaskListScreen = () => {
   };
 
   const handleEdit = (task) => {
-    navigate('/update', { state: { task } });
+    // Ensure task is serializable (i.e., doesn't contain functions or complex objects)
+    const taskData = {
+      id: task.id,
+      title: task.title,
+      duration: task.duration,
+      status: task.status,
+      elapsed_time: task.elapsed_time,
+      time: task.time,
+      persistent_time: task.persistent_time,
+      isActive: task.isActive,
+      isPending: task.isPending,
+      icon: task.icon,
+      iconBgColor: task.iconBgColor,
+      progress: task.progress,
+      // Do not pass calculateProgress or any function
+    };
+  
+    navigate('/update', { state: { task: taskData } });
   };
 
   const handleAddTask = () => {
