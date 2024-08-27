@@ -13,60 +13,57 @@ const icons = {
 };
 
 // Define the TaskItem component
-const TaskItem = ({ task, onStart, onStop, onEdit, progress }) => {
+const TaskItem = ({ task, onStart, onStop, onEdit }) => {
   const { upgradedStopTask } = useTimer();
-  const { title, time, status, iconBgColor, isActive, icon, isPending} = task; // Destructure task properties
-  const IconComponent = icons[icon]; // Get the icon component from the icons map
-  const isComplete = progress >= 100; // Determine if the task is complete
-  const progressColorScheme = status === 'GOAL' ? 'green' : status === 'LIMIT' ? 'red' : 'purple'; // Determine progress bar color scheme
-  const neonColor = status === 'GOAL' ? 'green.400' : status === 'LIMIT' ? 'red.400' : 'purple.400'; // Determine neon color for complete tasks
-  // Adjust border style based on active and pending status
+  const { title, time, status, iconBgColor, isActive, icon, isPending, isComplete, progress, progressColorScheme } = task; 
+  const IconComponent = icons[icon];
+  const neonColor = status === 'GOAL' ? 'green.400' : status === 'LIMIT' ? 'red.400' : 'purple.400';
+
   const activeBorderStyle = isActive 
     ? '2px solid gold' 
     : isPending 
       ? '2px solid orange' 
       : 'none';
-  
 
   return (
     <VStack
       spacing={0}
-      bg={isComplete ? neonColor : "gray.700"} // Set background color
+      bg={isComplete ? neonColor : "gray.700"}
       p={4}
       borderRadius="lg"
       w="100%"
       justifyContent="space-between"
-      onClick={onEdit} // Set click handler to edit task
+      onClick={onEdit}
       cursor="pointer"
       position="relative"
-      border={activeBorderStyle} // Add border for active task
-      boxShadow={isActive ? '0 0 10px gold' : 'none'} // Add neon effect for active task
+      border={activeBorderStyle}
+      boxShadow={isActive ? '0 0 10px gold' : 'none'}
     >
-      <HStack spacing={4} w="100%" justifyContent="space-between"> {/* Horizontal stack for task details */}
-        <HStack spacing={4}> {/* Horizontal stack for icon and task title */}
-          <Box bg={iconBgColor} p={2} borderRadius="full"> {/* Box for icon background */}
-            <Box as={IconComponent} color="white" boxSize="1.5em" /> {/* Task icon */}
+      <HStack spacing={4} w="100%" justifyContent="space-between">
+        <HStack spacing={4}>
+          <Box bg={iconBgColor} p={2} borderRadius="full">
+            <Box as={IconComponent} color="white" boxSize="1.5em" />
           </Box>
-          <VStack align="flex-start" spacing={1}> {/* Vertical stack for title and status */}
-            <Text fontSize="md" fontWeight="bold">{title}</Text> {/* Task title */}
-            <Badge colorScheme={status === 'GOAL' ? 'green' : 'red'}>{status}</Badge> {/* Task status badge */}
+          <VStack align="flex-start" spacing={1}>
+            <Text fontSize="md" fontWeight="bold">{title}</Text>
+            <Badge colorScheme={status === 'GOAL' ? 'green' : 'red'}>{status}</Badge>
           </VStack>
         </HStack>
-        <VStack spacing={1} alignItems="flex-end"> {/* Vertical stack for time and action button */}
-          <Text fontSize="sm" color={isComplete ? "white" : "gray.400"}>{time}</Text> {/* Task time */}
+        <VStack spacing={1} alignItems="flex-end">
+          <Text fontSize="sm" color={isComplete ? "white" : "gray.400"}>{time}</Text>
           <IconButton
-            icon={isActive ? <FaPause /> : <FaPlay />} // Display play or pause icon based on task state
+            icon={isActive ? <FaPause /> : <FaPlay />}
             colorScheme="purple"
             variant="outline"
             aria-label={isActive ? "Pause Task" : "Start Task"}
-            onClick={(e) => { e.stopPropagation(); isActive ? upgradedStopTask() : onStart(); }} // Use upgradedStopTask for stop
+            onClick={(e) => { e.stopPropagation(); isActive ? upgradedStopTask() : onStart(); }}
           />
         </VStack>
       </HStack>
       <Progress
-        value={progress} // Set progress value
+        value={progress}
         size="sm"
-        colorScheme={progressColorScheme} // Set progress color scheme
+        colorScheme={progressColorScheme}
         w="100%"
         position="absolute"
         bottom="0"
@@ -76,6 +73,5 @@ const TaskItem = ({ task, onStart, onStop, onEdit, progress }) => {
   );
 };
 
+
 export default TaskItem; // Export TaskItem component
-
-
