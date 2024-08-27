@@ -92,7 +92,9 @@ export const TimerProvider = ({ children }) => {
 
             // Explicitly set isPending based on the presence of start_time and whether it's active
             const isPending = task.start_time !== null;
-
+            const progress = Math.min((newUpdatedElapsedTime / (task.duration * 60)) * 100, 100);
+            const isComplete = progress >= 100;
+            const progressColorScheme = task.status === 'GOAL' ? 'green' : task.status === 'LIMIT' ? 'red' : 'purple';
 
       return {
         id: task.id,
@@ -104,6 +106,9 @@ export const TimerProvider = ({ children }) => {
         persistent_time: task.persistent_time || 0,
         isActive: activeTaskId === task.id,
         isPending,
+        isComplete,
+        progressColorScheme,
+        progress,
         icon: task.icon || 'FaSun',
         iconBgColor: task.status === 'GOAL' ? 'green.500' : 'red.500',
       };
@@ -301,25 +306,25 @@ export const TimerProvider = ({ children }) => {
   
   
   
-// Function to update the elapsed time in the database
-const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
-  try {
-    const { error } = await supabase
-      .from('tasks')
-      .update({
-        elapsed_time: elapsedTime,  // Only update elapsed_time
-      })
-      .eq('id', taskId);
-
-    if (error) {
-      console.error('Error updating elapsed time:', error);
-    } else {
-      console.log(`Elapsed time for task ID ${taskId} updated to ${elapsedTime} seconds`);
+  const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          elapsed_time: elapsedTime,
+        })
+        .eq('id', taskId);
+  
+      if (error) {
+        console.error('Error updating elapsed time:', error);
+      } else {
+        console.log(`Elapsed time for task ID ${taskId} updated to ${elapsedTime} seconds`);
+      }
+    } catch (err) {
+      console.error('Error in updateElapsedTimeInDatabase:', err);
     }
-  } catch (err) {
-    console.error('Error in updateElapsedTimeInDatabase:', err);
-  }
-};
+  };
+  
 
   
 
@@ -392,7 +397,7 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
     try {
       const { data, error } = await supabase
         .from('tasks')
-        .select('elapsed_time, persistent_time')
+        .select('elapsed_time')
         .eq('id', taskId)
         .single();
   
@@ -402,18 +407,18 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
       }
   
       const currentElapsedTime = data.elapsed_time || 0;
-      const currentPersistentTime = data.persistent_time || 0;
+      
       const currentTaskCompletion = data.task_completion || 0;
   
       const newElapsedTime = currentElapsedTime + seconds;
-      const newPersistentTime = currentPersistentTime + seconds;
+      
       const newTaskCompletion = taskCompletion !== undefined ? taskCompletion : currentTaskCompletion;
   
       const { error: updateError } = await supabase
         .from('tasks')
         .update({
           elapsed_time: newElapsedTime,
-          persistent_time: newPersistentTime,
+        
         })
         .eq('id', taskId);
   
@@ -456,27 +461,31 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
     ]);
   
     setTotalDaysCompleted((prev) => prev + 1);
-    setCompletionDates((prevDates) => prevDates + 1); 
+    setCompletionDates((prevDates) => prevDates + 1);
   
     try {
       const updates = tasks.map(async (task) => {
-        const elapsedTime = taskListResetTime[task.id];
-        const [hours, minutes, seconds] = elapsedTime?.split(':').map(Number) || [0, 0, 0];
-        const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+        const elapsedTime = task.elapsed_time || 0;
+        const persistentTime = task.persistent_time || 0;
   
-        if (task.status === 'GOAL' && totalSeconds >= task.duration * 60) {
+        const newPersistentTime = elapsedTime + persistentTime;
+  
+        if (task.status === 'GOAL' && elapsedTime >= task.duration * 60) {
           updateGoalCompletions(task.id);
         }
   
-        const { error: resetError } = await supabase
+        const { error: updateError } = await supabase
           .from('tasks')
-          .update({ elapsed_time: 0 })
+          .update({
+            elapsed_time: 0, // Reset elapsed_time after completion
+            persistent_time: newPersistentTime,
+          })
           .eq('id', task.id);
   
-        if (resetError) {
-          console.error('Error resetting elapsed time:', resetError);
+        if (updateError) {
+          console.error('Error updating persistent_time and resetting elapsed_time:', updateError);
         } else {
-          console.log(`Elapsed time for task ID ${task.id} successfully reset to 0`);
+          console.log(`Task ID ${task.id} persistent_time updated to ${newPersistentTime} seconds`);
         }
       });
   
@@ -490,13 +499,15 @@ const updateElapsedTimeInDatabase = async (taskId, elapsedTime) => {
       prevTasks.map((task) => ({
         ...task,
         time: '00:00:00',
-        isActive: false
+        isActive: false,
+        elapsed_time: 0, // Reset elapsed_time in the state
       }))
     );
     setActiveTaskId(null);
     setOngoingProgress(0);
     clearInterval(timerRef.current);
   };
+  
   
   
   const updateGoalCompletions = (taskId) => {
