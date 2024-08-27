@@ -45,6 +45,12 @@ const TaskListScreen = () => {
      // Explicitly set isPending based on the presence of start_time and whether it's active
      const isPending = task.start_time !== null;
 
+     const progress = Math.min((newUpdatedElapsedTime / (task.duration * 60)) * 100, 100);
+
+     console.log(`Task ID: ${task.id}, New Updated Elapsed Time: ${newUpdatedElapsedTime}, Progress: ${progress}%`);
+
+     const isComplete = progress >= 100;
+     const progressColorScheme = task.status === 'GOAL' ? 'green' : task.status === 'LIMIT' ? 'red' : 'purple';
 
       return {
         id: task.id,
@@ -56,45 +62,52 @@ const TaskListScreen = () => {
         persistent_time: task.persistent_time || 0,
         isActive: activeTaskId === task.id,
         isPending,
+        progressColorScheme,
+        isComplete,
+        progress,
+        calculateProgress,
         icon: task.icon || 'FaSun',
         iconBgColor: task.status === 'GOAL' ? 'green.500' : 'red.500'
       };
     });
   
     setTasks(updatedTasks);
+    
   };
-  
 
   useEffect(() => {
     fetchTasks();
   }, [user]);
 
-  // Update progress based on tasks
   useEffect(() => {
+    console.log('Tasks have been updated:', tasks);
+    
+    // Filter tasks with status 'GOAL'
     const goalTasks = tasks.filter(task => task.status === 'GOAL');
-    const today = new Date().toLocaleDateString();
-
+  
+    // Calculate the total elapsed time for all GOAL tasks, capping each at its own duration
     const totalElapsed = goalTasks.reduce((acc, task) => {
-      const [hours, minutes, seconds] = taskListResetTime[task.id]?.split(':').map(Number) || [0, 0, 0];
-      const taskElapsed = Math.min(hours * 3600 + minutes * 60 + seconds, task.duration * 60);
-
-      const currentTime = hours * 3600 + minutes * 60 + seconds;
-      const taskGoalTime = task.duration * 60;
-
+      const taskElapsed = Math.min(task.elapsed_time, task.duration * 60); // Cap elapsed time at task duration
       return acc + taskElapsed;
     }, 0);
-
-    const totalDur = goalTasks.reduce((acc, task) => acc + task.duration * 60, 0);
-
-    setElapsedTime(totalElapsed / 60);
-    setTotalDuration(totalDur / 60);
-
+  
+    // Calculate the total duration time for all GOAL tasks
+    const totalDur = goalTasks.reduce((acc, task) => acc + (task.duration * 60), 0);
+  
+    setElapsedTime(totalElapsed / 60); // Convert seconds to minutes
+    setTotalDuration(totalDur / 60);   // Convert seconds to minutes
+  
     if (totalDur > 0) {
-      setProgress((totalElapsed / totalDur) * 100);
+      const newProgress = (totalElapsed / totalDur) * 100;
+      setProgress(newProgress);
+      console.log(`New Progress: ${newProgress}%`);
     } else {
       setProgress(0);
+      console.log(`Progress reset to 0% because total duration is 0`);
     }
-  }, [tasks, taskListResetTime]);
+  }, [tasks]);
+  
+  
 
   const handleCompleteDay = async () => {
     // Stop the active task timer
