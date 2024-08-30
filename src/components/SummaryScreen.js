@@ -26,7 +26,7 @@ const SummaryScreen = () => {
     ongoingProgress,
     setOngoingProgress,
     goalCompletions,
-    setGoalCompletions
+    setGoalCompletions,
   } = useTimer();
 
   const { user } = useAuth();
@@ -34,38 +34,38 @@ const SummaryScreen = () => {
   const [dayOffset, setDayOffset] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [dayProgress, setDayProgress] = useState(0);
-  const [loading, setLoading] = useState(true); // Add loading state
+  const [loading, setLoading] = useState(true); // Loading state
+
+  const fetchProgressData = async () => {
+    if (!user || !user.id) return;
+
+    const { data, error } = await supabase
+      .from('user_progress')
+      .select('total_days_completed, daily_progress, ongoing_progress, goal_completions')
+      .eq('user_id', user.id)
+      .single();
+
+    if (error) {
+      console.error('Error fetching progress data:', error);
+      return;
+    }
+
+    if (data) {
+      setTotalDaysCompleted(data.total_days_completed || 0);
+      setDailyProgress(data.daily_progress || []);
+      setOngoingProgress(data.ongoing_progress || 0);
+      setGoalCompletions(data.goal_completions || {});
+
+      const totalDays = data.total_days_completed || 0;
+      const initialOffset = totalDays >= 7 ? Math.floor((totalDays - 1) / 7) * 7 : 0;
+      setDayOffset(initialOffset);
+    }
+    setLoading(false); // Set loading to false once data is fetched
+  };
 
   useEffect(() => {
-    const fetchProgressData = async () => {
-      if (!user || !user.id) return;
-
-      const { data, error } = await supabase
-        .from('user_progress')
-        .select('total_days_completed, daily_progress, ongoing_progress, goal_completions')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Error fetching progress data:', error);
-        return;
-      }
-
-      if (data) {
-        setTotalDaysCompleted(data.total_days_completed || 0);
-        setDailyProgress(data.daily_progress || []);
-        setOngoingProgress(data.ongoing_progress || 0);
-        setGoalCompletions(data.goal_completions || {});
-
-        const totalDays = data.total_days_completed || 0;
-        const initialOffset = totalDays >= 7 ? Math.floor((totalDays - 1) / 7) * 7 : 0;
-        setDayOffset(initialOffset);
-      }
-      setLoading(false); // Set loading to false once data is fetched
-    };
-
-    fetchProgressData();
-  }, [user, setTotalDaysCompleted, setDailyProgress, setOngoingProgress, setGoalCompletions]);
+    fetchProgressData(); // Fetch data when the component mounts
+  }, []); // Empty dependency array ensures this runs only on mount
 
   // Effect to calculate total tracked time and day progress
   useEffect(() => {
@@ -133,7 +133,7 @@ const SummaryScreen = () => {
     return `${days > 0 ? `${days} days ` : ''}${hours > 0 ? `${hours} hrs ` : ''}${minutes} min`;
   };
 
-  // Added: Logic to handle day navigation within valid ranges
+  // Logic to handle day navigation within valid ranges
   const handleNextDays = () => {
     const maxOffset = Math.floor((totalDaysCompleted - 1) / 7) * 7;
     if (dayOffset < maxOffset) {
@@ -159,7 +159,7 @@ const SummaryScreen = () => {
       p={6}
       pb={20}
     >
-      {loading ? ( // Show a loading spinner or message while data is being fetched
+      {loading ? (
         <CircularProgress isIndeterminate color="green.300" />
       ) : (
         <VStack spacing={6} w="100%" maxW="md">
@@ -273,4 +273,3 @@ const SummaryScreen = () => {
 };
 
 export default SummaryScreen;
-
