@@ -479,7 +479,6 @@ export const TimerProvider = ({ children }) => {
           .update({
             elapsed_time: 0, // Reset elapsed_time after completion
             persistent_time: newPersistentTime,
-            start_time: null,
           })
           .eq('id', task.id);
   
@@ -502,9 +501,6 @@ export const TimerProvider = ({ children }) => {
         time: '00:00:00',
         isActive: false,
         elapsed_time: 0, // Reset elapsed_time in the state
-        isActive: false, 
-        isPending: false,
-        progress: 0,
       }))
     );
     setActiveTaskId(null);
