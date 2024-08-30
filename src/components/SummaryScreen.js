@@ -14,13 +14,13 @@ import BottomNavBar from './BottomNavBar';
 import { useTimer } from '../TimerContext';
 import supabase from '../supabaseClient';
 import { useAuth } from '../AuthContext';
+import { useLocation } from 'react-router-dom';
 
 const SummaryScreen = () => {
   const {
     tasks,
     totalDaysCompleted,
     setTotalDaysCompleted,
-    summaryPersistentTime,
     dailyProgress,
     setDailyProgress,
     ongoingProgress,
@@ -30,11 +30,12 @@ const SummaryScreen = () => {
   } = useTimer();
 
   const { user } = useAuth();
+  const location = useLocation(); // Use this to detect location changes
 
   const [dayOffset, setDayOffset] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [dayProgress, setDayProgress] = useState(0);
-  const [loading, setLoading] = useState(true); // Loading state
+  const [loading, setLoading] = useState(true);
 
   const fetchProgressData = async () => {
     if (!user || !user.id) return;
@@ -60,12 +61,13 @@ const SummaryScreen = () => {
       const initialOffset = totalDays >= 7 ? Math.floor((totalDays - 1) / 7) * 7 : 0;
       setDayOffset(initialOffset);
     }
-    setLoading(false); // Set loading to false once data is fetched
+    setLoading(false);
   };
 
+  // Fetch data when the component mounts and whenever the location changes
   useEffect(() => {
-    fetchProgressData(); // Fetch data when the component mounts
-  }, []); // Empty dependency array ensures this runs only on mount
+    fetchProgressData();
+  }, [location]);
 
   // Effect to calculate total tracked time and day progress
   useEffect(() => {
@@ -89,7 +91,6 @@ const SummaryScreen = () => {
 
   // Function to save progress data to Supabase
   const saveProgressData = async () => {
-    console.log('Saving goal_completions:', goalCompletions);
     if (user && (totalDaysCompleted > 0 || dailyProgress.length > 0 || ongoingProgress > 0)) {
       const { error } = await supabase
         .from('user_progress')
@@ -133,7 +134,6 @@ const SummaryScreen = () => {
     return `${days > 0 ? `${days} days ` : ''}${hours > 0 ? `${hours} hrs ` : ''}${minutes} min`;
   };
 
-  // Logic to handle day navigation within valid ranges
   const handleNextDays = () => {
     const maxOffset = Math.floor((totalDaysCompleted - 1) / 7) * 7;
     if (dayOffset < maxOffset) {
