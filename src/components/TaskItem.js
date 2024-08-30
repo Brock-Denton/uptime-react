@@ -1,5 +1,5 @@
 // src/components/TaskItem.js
-import React from 'react'; // Import React
+import React, { useEffect, useState } from 'react'; // Import React
 import { HStack, VStack, Box, Text, Badge, IconButton, Progress } from '@chakra-ui/react'; // Import Chakra UI components
 import { FaPlay, FaPause, FaSun, FaMoon, FaStar, FaCloud } from 'react-icons/fa'; // Import icons from react-icons
 import { useTimer } from '../TimerContext'
@@ -13,17 +13,48 @@ const icons = {
 };
 
 // Define the TaskItem component
-const TaskItem = ({ task, onStart, onStop, onEdit }) => {
+const TaskItem = ({ task, onStart, onStop, onEdit}) => {
   const { upgradedStopTask } = useTimer();
-  const { title, time, status, iconBgColor, isActive, icon, isPending, isComplete, progress, progressColorScheme } = task; 
+  const [localProgress, setLocalProgress] = useState(task.progress); // Local state for progress
+  const { title, time, status, iconBgColor, isActive, icon, isPending, progress, progressColorScheme } = task; 
   const IconComponent = icons[icon];
-  const neonColor = status === 'GOAL' ? 'green.400' : status === 'LIMIT' ? 'red.400' : 'purple.400';
+  // Calculate the completion status based on progress
+  const isComplete = localProgress >= 100;
 
   const activeBorderStyle = isActive 
     ? '2px solid gold' 
     : isPending 
       ? '2px solid orange' 
       : 'none';
+
+      const neonColor = status === 'GOAL' ? 'green.400' : status === 'LIMIT' ? 'red.400' : 'purple.400';
+
+      // Update progress when task prop changes
+      useEffect(() => {
+        setLocalProgress(task.progress);
+      }, [task.progress]);
+    
+      // Set an interval to update progress every 2 seconds
+      useEffect(() => {
+        const intervalId = setInterval(() => {
+          console.log(`Interval triggered for task: ${task.title}`);
+          setLocalProgress(prevProgress => {
+            const newProgress = Math.min(prevProgress + 1, 100); // Increment progress and cap at 100%
+            return newProgress;
+          });
+        }, 2000);
+    
+        // Cleanup interval on component unmount
+        return () => clearInterval(intervalId);
+      }, []);
+
+        // Reset task state when completeDay is called
+  useEffect(() => {
+    if (!isActive && !isPending) {
+      // When completeDay is called, set isActive and isPending to false
+      setLocalProgress(0); // Reset progress for a new day
+    }
+  }, [isActive, isPending]);
 
   return (
     <VStack
@@ -61,7 +92,7 @@ const TaskItem = ({ task, onStart, onStop, onEdit }) => {
         </VStack>
       </HStack>
       <Progress
-        value={progress}
+        value={localProgress}
         size="sm"
         colorScheme={progressColorScheme}
         w="100%"
@@ -75,3 +106,4 @@ const TaskItem = ({ task, onStart, onStop, onEdit }) => {
 
 
 export default TaskItem; // Export TaskItem component
+
