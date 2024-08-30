@@ -30,13 +30,14 @@ const SummaryScreen = () => {
   } = useTimer();
 
   const { user } = useAuth();
-  const location = useLocation(); // Use this to detect location changes
+  const location = useLocation();
 
   const [dayOffset, setDayOffset] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [dayProgress, setDayProgress] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Fetch progress data from Supabase
   const fetchProgressData = async () => {
     if (!user || !user.id) return;
 
@@ -64,10 +65,10 @@ const SummaryScreen = () => {
     setLoading(false);
   };
 
-  // Fetch data when the component mounts and whenever the location changes
+  // Fetch data when the component mounts or location changes
   useEffect(() => {
-    fetchProgressData();
-  }, [location]);
+    fetchProgressData(); // Fetch data every time the SummaryScreen is loaded
+  }, [location, user]);
 
   // Effect to calculate total tracked time and day progress
   useEffect(() => {
@@ -124,7 +125,6 @@ const SummaryScreen = () => {
     };
   }, [totalDaysCompleted, dailyProgress, ongoingProgress]);
 
-  // Function to calculate percentage of time
   const calculatePercentage = (time) => (totalTime === 0 ? 0 : (time / totalTime) * 100);
 
   const formatTime = (time) => {
